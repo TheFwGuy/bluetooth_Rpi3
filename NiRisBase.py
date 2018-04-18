@@ -62,8 +62,9 @@ while True:
    # Bluetooth management
    if (state == 0):
       # Waiting for connection
+      # NOTE ! The line below waits for a connection blocking the loop !
       client_socket,address = server_socket.accept()
-      print "Accepted connection from ",address
+      # print "Accepted connection from ",address
       # Set LCD plate color BLUE
       lcd.set_color(0.0, 0.0, 1.0)
       lcd.clear()
@@ -72,7 +73,9 @@ while True:
 
    if (state == 1):
       data = client_socket.recv(1024)
-      print "Received: %s" % data
+      lcd.clear()
+      lcd.message(data)
+      # print "Received: %s" % data
       if (data == 'q'):
          state = 0
          client_socket.close()
@@ -83,7 +86,7 @@ while True:
          lcd.clear()
          lcd.message('Disconnected\nBluetooth')
 
-    # Check if Select is pressed
+   # Check if Select is pressed
    if lcd.is_pressed(LCD.SELECT):
       # Button is pressed, change the message and backlight.
       lcd.clear()
