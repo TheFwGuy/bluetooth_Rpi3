@@ -38,29 +38,51 @@ buttons = ( (LCD.SELECT, 'Select', (1,1,1)),
             (LCD.DOWN,   'Down'  , (0,1,0)),
             (LCD.RIGHT,  'Right' , (1,0,1)) )
 
-# Set up Bluettoth
-# Restart Bluetooth and set for slave
-os.popen('sudo hciconfig hci0 reset')
-os.popen('sudo hciconfig hci0 piscan')
-
-print "Bluetooth initialization - set as slave"
-
-# Set up Bluetooth socket 
-server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
-
-port = 1
-server_socket.bind(("",port))
-server_socket.listen(1)
-
 # State machine for Bluetooth
-# 0 -> waiting for connection
-# 1 -> connected
+# 0 -> Waiting to start (press select)
+# 1 -> waiting for connection
+# 2 -> connected
 state = 0
 
 # Monitor push buttons
 while True:
    # Bluetooth management
    if (state == 0):
+      # Check if Select is pressed
+      if lcd.is_pressed(LCD.SELECT):
+         # Button is pressed, change the message and backlight.
+         lcd.clear()
+         # Set LCD plate color GREEN
+         lcd.set_color(0.0, 1.0, 0.0)
+         lcd.clear()
+         lcd.message('Waiting\nconnection')
+         state = 1
+      # Check if Down is pressed
+      if lcd.is_pressed(LCD.DOWN):
+         # Button is pressed, change the message and backlight.
+         lcd.clear()
+         lcd.message('Shutdown\nin 5 sec.')
+         time.sleep(5)
+         lcd.clear()
+         os.system("sudo poweroff")
+
+   if (state == 1):
+      # Set up Bluettoth
+      # Restart Bluetooth and set for slave
+      os.popen('sudo hciconfig hci0 reset')
+      os.popen('sudo hciconfig hci0 piscan')
+
+      print "Bluetooth initialization - set as slave"
+
+      # Set up Bluetooth socket 
+      server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
+
+      server_socket.bind(("", bluetooth.PORT_ANY))
+      server_socket.listen(1)
+
+      uuid = "94f39d29-7d6d-437d-973b-fba39e49d4ee"
+
+
       # Waiting for connection
       # NOTE ! The line below waits for a connection blocking the loop !
       client_socket,address = server_socket.accept()
@@ -69,9 +91,9 @@ while True:
       lcd.set_color(0.0, 0.0, 1.0)
       lcd.clear()
       lcd.message('Connected\nBluetooth')
-      state = 1
+      state = 2
 
-   if (state == 1):
+   if (state == 2):
       data = client_socket.recv(1024)
       lcd.clear()
       lcd.message(data)
@@ -86,19 +108,3 @@ while True:
          lcd.clear()
          lcd.message('Disconnected\nBluetooth')
 
-   # Check if Select is pressed
-   if lcd.is_pressed(LCD.SELECT):
-      # Button is pressed, change the message and backlight.
-      lcd.clear()
-      lcd.message('Shutdown in 5 sec.')
-      time.sleep(5)
-      lcd.clear()
-      os.system("sudo poweroff")
-
-    # Loop through each button and check if it is pressed.
-#    for button in buttons:
-#        if lcd.is_pressed(button[0]):
-#            # Button is pressed, change the message and backlight.
-#            lcd.clear()
-#            lcd.message(button[1])
-#            lcd.set_color(button[2][0], button[2][1], button[2][2])
