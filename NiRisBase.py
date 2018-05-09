@@ -8,6 +8,60 @@ import commands
 import os
 import Adafruit_CharLCD as LCD
 import bluetooth
+import subprocess as sp
+
+# Global variables
+
+# Make list of button value, text, and backlight color.
+buttons = ( (LCD.SELECT, 'Select', (1,1,1)),
+            (LCD.LEFT,   'Left'  , (1,0,0)),
+            (LCD.UP,     'Up'    , (0,0,1)),
+            (LCD.DOWN,   'Down'  , (0,1,0)),
+            (LCD.RIGHT,  'Right' , (1,0,1)) )
+
+# State machine for Bluetooth
+# 0 -> Waiting to start (press select)
+# 1 -> waiting for connection
+# 2 -> connected
+state = 0
+
+# Define functions
+
+def openConnection():
+   global server_socket
+   global client_socket
+   global address
+
+   # Set up Bluettoth
+   # Restart Bluetooth and set for slave
+   os.popen('sudo hciconfig hci0 reset')
+   os.popen('sudo hciconfig hci0 piscan')
+
+   print "Bluetooth initialization - set as slave"
+
+   # Set up Bluetooth socket 
+   server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
+
+   print "Use port_any : ", bluetooth.PORT_ANY 
+   server_socket.bind(("", bluetooth.PORT_ANY))
+   server_socket.listen(1)
+
+   # Waiting for connection
+   # NOTE ! The line below waits for a connection blocking the loop !
+   client_socket,address = server_socket.accept()
+   print "Accepted connection from ",address
+
+
+def closeConnection():
+   client_socket.close()
+   server_socket.close()
+   print "Closed Bluetooth - disconnected"
+   # Set color LCD Red
+   lcd.set_color(1.0, 0.0, 0.0)
+   lcd.clear()
+   #lcd.message('Disconnected\nBluetooth')
+   lcd.message('IP WLAN:\n')
+   lcd.message(commands.getoutput('hostname -I'))
 
 # Initialize the LCD using the pins
 lcd = LCD.Adafruit_CharLCDPlate()
@@ -30,19 +84,6 @@ lcd.clear()
 # Display IP address
 lcd.message('IP WLAN:\n')
 lcd.message(commands.getoutput('hostname -I'))
-
-# Make list of button value, text, and backlight color.
-buttons = ( (LCD.SELECT, 'Select', (1,1,1)),
-            (LCD.LEFT,   'Left'  , (1,0,0)),
-            (LCD.UP,     'Up'    , (0,0,1)),
-            (LCD.DOWN,   'Down'  , (0,1,0)),
-            (LCD.RIGHT,  'Right' , (1,0,1)) )
-
-# State machine for Bluetooth
-# 0 -> Waiting to start (press select)
-# 1 -> waiting for connection
-# 2 -> connected
-state = 0
 
 # Monitor push buttons
 while True:
@@ -67,26 +108,8 @@ while True:
          os.system("sudo poweroff")
 
    if (state == 1):
-      # Set up Bluettoth
-      # Restart Bluetooth and set for slave
-      os.popen('sudo hciconfig hci0 reset')
-      os.popen('sudo hciconfig hci0 piscan')
+      openConnection()   # The function waits until a connection happens !
 
-      print "Bluetooth initialization - set as slave"
-
-      # Set up Bluetooth socket 
-      server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
-
-      server_socket.bind(("", bluetooth.PORT_ANY))
-      server_socket.listen(1)
-
-      uuid = "94f39d29-7d6d-437d-973b-fba39e49d4ee"
-
-
-      # Waiting for connection
-      # NOTE ! The line below waits for a connection blocking the loop !
-      client_socket,address = server_socket.accept()
-      # print "Accepted connection from ",address
       # Set LCD plate color BLUE
       lcd.set_color(0.0, 0.0, 1.0)
       lcd.clear()
@@ -94,17 +117,22 @@ while True:
       state = 2
 
    if (state == 2):
-      data = client_socket.recv(1024)
+      try:
+         data = client_socket.recv(1024)  # The function waits for characters !
+      except:
+         closeConnection()
+         state = 0
+
       lcd.clear()
       lcd.message(data)
-      # print "Received: %s" % data
-      if (data == 'q'):
+      print "Received: %s" % data
+      if (data == 'q\n'):
+         closeConnection()
          state = 0
-         client_socket.close()
-         server_socket.close()
-         print "Closed Bluettoth - disconnected"
-         # Set color LCD Red
-         lcd.set_color(1.0, 0.0, 0.0)
-         lcd.clear()
-         lcd.message('Disconnected\nBluetooth')
+
+      # Check if Down is pressed
+      if lcd.is_pressed(LCD.DOWN):
+         # Button is pressed, send message
+         print "Down button pressed - send message"
+         client_socket.send("Down")
 
