@@ -3,6 +3,5 @@
 
 cd /
 cd /home/pi/bluetooth_Rpi3
-sudo ./NiRisBase.py
+sudo ./BLTest.py
 cd /
-
