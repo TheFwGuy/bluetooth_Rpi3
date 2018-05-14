@@ -6,6 +6,7 @@
 import time
 import commands
 import os
+import thread
 import Adafruit_CharLCD as LCD
 import bluetooth
 import subprocess as sp
@@ -20,12 +21,46 @@ buttons = ( (LCD.SELECT, 'Select', (1,1,1)),
             (LCD.RIGHT,  'Right' , (1,0,1)) )
 
 # State machine for Bluetooth
-# 0 -> Waiting to start (press select)
+# 0 -> Initialization program - init BT 
 # 1 -> waiting for connection
 # 2 -> connected
 state = 0
 
 # Define functions
+
+def waitBTthread():
+   global state
+   global server_socket
+   global client_socket
+   global address
+
+   while True:
+      if state == 0:
+         # print "Start wait ..."
+         # NOTE ! The line below waits for a connection blocking the loop !
+         client_socket,address = server_socket.accept()
+         print "Accepted connection from ",address
+         state = 2
+         # Set LCD plate color BLUE
+         lcd.set_color(0.0, 0.0, 1.0)
+         lcd.clear()
+         lcd.message('Connected\nBluetooth')
+
+def readBTthread():
+   global state
+   global data
+   global server_socket
+   global client_socket
+   global address
+
+   while True:
+      if state == 2:
+         try:
+            data = client_socket.recv(1024)  # The function waits for characters !
+         except:
+            closeConnection()
+            state = 0
+
 
 def openConnection():
    global server_socket
@@ -46,13 +81,20 @@ def openConnection():
    server_socket.bind(("", bluetooth.PORT_ANY))
    server_socket.listen(1)
 
-   # Waiting for connection
-   # NOTE ! The line below waits for a connection blocking the loop !
-   client_socket,address = server_socket.accept()
-   print "Accepted connection from ",address
+   if waitBTthread().is_alive():
+      print "Thread already running"
+   else:
+      # Waiting for connection - start thread !
+      print "Start thread  waiting for connection"
+      thread.start_new_thread(waitBTthread() )
+   state = 1
 
 
 def closeConnection():
+   global server_socket
+   global client_socket
+   global address
+
    client_socket.close()
    server_socket.close()
    print "Closed Bluetooth - disconnected"
@@ -86,42 +128,34 @@ lcd.message('IP WLAN:\n')
 lcd.message(commands.getoutput('hostname -I'))
 
 # Monitor push buttons
+# The main loop of the program check if the Select button is pressed.
+# If is pressed, the shutdown is issued
+
 while True:
+   # Check if Select is pressed
+   if lcd.is_pressed(LCD.SELECT):
+      # Button is pressed, change the message and backlight.
+      lcd.clear()
+      lcd.message('Shutdown\nin 5 sec.')
+      time.sleep(5)
+      lcd.clear()
+      os.system("sudo poweroff")
+
+   print "state %d" % state
+
    # Bluetooth management
    if (state == 0):
-      # Check if Select is pressed
-      if lcd.is_pressed(LCD.SELECT):
-         # Button is pressed, change the message and backlight.
-         lcd.clear()
-         # Set LCD plate color GREEN
-         lcd.set_color(0.0, 1.0, 0.0)
-         lcd.clear()
-         lcd.message('Waiting\nconnection')
-         state = 1
-      # Check if Down is pressed
-      if lcd.is_pressed(LCD.DOWN):
-         # Button is pressed, change the message and backlight.
-         lcd.clear()
-         lcd.message('Shutdown\nin 5 sec.')
-         time.sleep(5)
-         lcd.clear()
-         os.system("sudo poweroff")
-
-   if (state == 1):
+      print "Call openconnection"
       openConnection()   # The function waits until a connection happens !
 
-      # Set LCD plate color BLUE
-      lcd.set_color(0.0, 0.0, 1.0)
-      lcd.clear()
-      lcd.message('Connected\nBluetooth')
-      state = 2
-
    if (state == 2):
-      try:
-         data = client_socket.recv(1024)  # The function waits for characters !
-      except:
-         closeConnection()
-         state = 0
+      if readBTthread().is_alive():
+         print "Rx Thread already running"
+      else:
+         # Waiting for data - start thread !
+         print "Start thread  waiting for data"
+         thread.start_new_thread(readBTthread() )
+         print "Start wait ..."
 
       lcd.clear()
       lcd.message(data)
