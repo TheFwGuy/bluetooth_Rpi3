@@ -6,7 +6,10 @@
 import time
 import commands
 import os
+import errno
+from socket import error as socket_error
 import thread
+import threading
 import Adafruit_CharLCD as LCD
 import bluetooth
 import subprocess as sp
@@ -26,6 +29,9 @@ buttons = ( (LCD.SELECT, 'Select', (1,1,1)),
 # 2 -> connected
 state = 0
 
+# Flag to informa about data read
+isData = False
+
 # Define functions
 
 def waitBTthread():
@@ -35,31 +41,17 @@ def waitBTthread():
    global address
 
    while True:
-      if state == 0:
+      if state == 1:
+         lcd.set_color(1.0, 0.0, 1.0)
          # print "Start wait ..."
          # NOTE ! The line below waits for a connection blocking the loop !
          client_socket,address = server_socket.accept()
-         print "Accepted connection from ",address
-         state = 2
+         # print "Accepted connection from ",address
          # Set LCD plate color BLUE
          lcd.set_color(0.0, 0.0, 1.0)
          lcd.clear()
          lcd.message('Connected\nBluetooth')
-
-def readBTthread():
-   global state
-   global data
-   global server_socket
-   global client_socket
-   global address
-
-   while True:
-      if state == 2:
-         try:
-            data = client_socket.recv(1024)  # The function waits for characters !
-         except:
-            closeConnection()
-            state = 0
+         state = 2
 
 
 def openConnection():
@@ -81,13 +73,10 @@ def openConnection():
    server_socket.bind(("", bluetooth.PORT_ANY))
    server_socket.listen(1)
 
-   if waitBTthread().is_alive():
-      print "Thread already running"
-   else:
-      # Waiting for connection - start thread !
+   t1 = threading.Thread(target= waitBTthread, args=())
+   if t1.is_alive() == False:
       print "Start thread  waiting for connection"
-      thread.start_new_thread(waitBTthread() )
-   state = 1
+      t1.start()
 
 
 def closeConnection():
@@ -131,6 +120,10 @@ lcd.message(commands.getoutput('hostname -I'))
 # The main loop of the program check if the Select button is pressed.
 # If is pressed, the shutdown is issued
 
+isData = False;
+
+t1 = threading.Thread(target= waitBTthread, args=())
+
 while True:
    # Check if Select is pressed
    if lcd.is_pressed(LCD.SELECT):
@@ -141,28 +134,35 @@ while True:
       lcd.clear()
       os.system("sudo poweroff")
 
-   print "state %d" % state
-
    # Bluetooth management
    if (state == 0):
       print "Call openconnection"
       openConnection()   # The function waits until a connection happens !
+      state = 1
+
+#   if (state == 1):
+#      print "."
 
    if (state == 2):
-      if readBTthread().is_alive():
-         print "Rx Thread already running"
-      else:
-         # Waiting for data - start thread !
-         print "Start thread  waiting for data"
-         thread.start_new_thread(readBTthread() )
-         print "Start wait ..."
+      try:
+         data = client_socket.recv(10)  # The function waits for characters !
+         isData = True
+      except socket_error as serr:
+         isData = False
+         if serr.errno != 11:
+            print "Errno : %d" % serr.errno
+            closeConnection()
+            state = 0
 
-      lcd.clear()
-      lcd.message(data)
-      print "Received: %s" % data
-      if (data == 'q\n'):
-         closeConnection()
-         state = 0
+      if isData:
+         lcd.clear()
+         lcd.message(data)
+         print "Received: %s" % data
+         
+         if (data == 'q\n'):
+            closeConnection()
+            state = 0
+         isData = False
 
       # Check if Down is pressed
       if lcd.is_pressed(LCD.DOWN):
