@@ -48,40 +48,53 @@ def waitBTthread():
    global dataOut
 
    while True:
+#      time.sleep(.5)
+
+      if state == 0:
+         # Init connection
+         server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
+
+         print "Use port_any : ", bluetooth.PORT_ANY 
+         server_socket.bind(("", bluetooth.PORT_ANY))
+         server_socket.listen(1)
+         state = 1
+
       if state == 1:
          lcd.set_color(1.0, 0.0, 1.0)
          # print "Start wait ..."
          # NOTE ! The line below waits for a connection blocking the loop !
-         client_socket,address = server_socket.accept()
-         print "Accepted connection from ",address
-         state = 2
+         try:
+            client_socket,address = server_socket.accept()
+            print "Accepted connection from ",address
+            state = 2
+         except Exception as ex:
+            template = "1) An exception of type {0} occurred. Arguments:\n{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            print message
 
       if state == 2:
+         time.sleep(.5)		# Give some time to the main loop
          if isDataIn == False:
-            print "Wait RX"
+#            print "Wait RX"
             try:
-               dataIn = client_socket.recv(1024)  # The function waits for characters !
+               dataIn = client_socket.recv(1024, 0x40)  # The function waits for characters !
                isDataIn = True
-            except socket_error as serr:
-               print "Errno : %d" % serr.errno
-               if serr.errno != 11:
-                  client_socket.close()
-                  server_socket.close()
-                  state = 0
-                  isDataIn = False
-            except BluetoothError:
-               print "BT Erro ! Close connection"
-               client_socket.close()
-               server_socket.close()
-               state = 0
-               isDataIn = False
-            else:
-               print "Other exception !"
-#               isDataIn = False
-#               isDataOut = False
-#               client_socket.close()
-#               server_socket.close()
-#               state = 0
+            except Exception as ex:
+               template = "2) An exception of type {0} occurred. Arguments:\n{1!r}"
+               message = template.format(type(ex).__name__, ex.args)
+               if type(ex).__name__ == "BluetoothError":
+                  if ex.args[0] == "(104, 'Connection reset by peer')":
+                     state = 0
+                     client_socket.close()
+                     server_socket.close()
+                     print "Closed Bluettoth - disconnected"
+                  elif ex.args[0] == "(11, 'Resource temporarily unavailable')":
+                     # Ignore
+                     a = ex.args[0]
+                  else:
+                     print message
+               else:
+                  print message
 
             if isDataIn:
                print "Received: %s" % dataIn
@@ -164,11 +177,11 @@ while True:
       print "Bluetooth initialization - set as slave"
 
       # Set up Bluetooth socket 
-      server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
+#      server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
 
-      print "Use port_any : ", bluetooth.PORT_ANY 
-      server_socket.bind(("", bluetooth.PORT_ANY))
-      server_socket.listen(1)
+#      print "Use port_any : ", bluetooth.PORT_ANY 
+#      server_socket.bind(("", bluetooth.PORT_ANY))
+#      server_socket.listen(1)
 
       t1 = threading.Thread(target= waitBTthread, args=())
       if t1.is_alive() == False:
@@ -182,8 +195,8 @@ while True:
    if (state == 2):
       if isDataIn:
          print "Main : %s" % dataIn
-#         lcd.clear()
-#         lcd.message(dataIn)
+         lcd.clear()
+         lcd.message(dataIn)
          isDataIn = False
 
 
@@ -192,6 +205,12 @@ while True:
       if isDataOut == False:
          # Button is pressed, send message
          print "Down button pressed - send message"
-         dataOut = "Down"
+         dataOut = "Down\n"
+         isDataOut = True
+   elif lcd.is_pressed(LCD.UP):
+      if isDataOut == False:
+         # Button is pressed, send message
+         print "Up button pressed - send message"
+         dataOut = "Up\n"
          isDataOut = True
 
