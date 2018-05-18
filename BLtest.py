@@ -7,11 +7,8 @@ import commands
 import os
 import bluetooth
 from socket import error as socket_error
-import thread
-import threading
 
 # Initialization
-
 
 # Display IP address
 print "IP WLAN: hostname -I"
@@ -23,13 +20,6 @@ os.popen('sudo hciconfig hci0 piscan')
 
 print "Bluetooth initialization - set as slave"
 
-# Set up Bluetooth socket 
-server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
-
-port = 1
-server_socket.bind(("",port))
-server_socket.listen(1)
-
 # State machine for Bluetooth
 # 0 -> waiting for connection
 # 1 -> connected
@@ -39,9 +29,16 @@ state = 0
 while True:
    # Bluetooth management
    if (state == 0):
-      # Waiting for connection
+      # Set up Bluetooth socket 
+      server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
+
+      port = 1
+      server_socket.bind(("",port))
+      server_socket.listen(1)      # Waiting for connection
+
       # NOTE ! The line below waits for a connection blocking the loop !
       try:
+         print "Wait for connection"
          client_socket,address = server_socket.accept()
          print "Accepted connection from ",address
          state = 1
@@ -54,7 +51,9 @@ while True:
       try:
          data = client_socket.recv(1024, 0x40)
          print "Received: %s" % data
-         if (data == 'q'):
+         if (data == 'q\n'):
+            client_socket.close()
+            server_socket.close()
             state = 0
             print "Closed Bluettoth - disconnected"
       except Exception as ex:
@@ -63,8 +62,8 @@ while True:
          if type(ex).__name__ == "BluetoothError":
             if ex.args[0] == "(104, 'Connection reset by peer')":
                state = 0
-#               client_socket.close()
-#               server_socket.close()
+               client_socket.close()
+               server_socket.close()
                print "Closed Bluettoth - disconnected"
             elif ex.args[0] == "(11, 'Resource temporarily unavailable')":
                # Ignore
