@@ -84,23 +84,20 @@ def waitBTthread():
 			BTstate = 1
 
 		if BTstate == 1:
-			if LCDtype == 1:
-				lcd.set_color(1.0, 0.0, 1.0)
-
-		# print "Start wait ..."
-		# NOTE ! The line below waits for a connection blocking the loop !
-		try:
-			client_socket,address = server_socket.accept()
-			print "Accepted connection from ",address
-			BTstate = 2
-		except Exception as ex:
-			template = "1) An exception of type {0} occurred. Arguments:\n{1!r}"
-			message = template.format(type(ex).__name__, ex.args)
-			print message
+			# print "Start wait ..."
+			# NOTE ! The line below waits for a connection blocking the loop !
+			try:
+				client_socket,address = server_socket.accept()
+				print "Accepted connection from ",address
+				BTstate = 2
+			except Exception as ex:
+				template = "1) An exception of type {0} occurred. Arguments:\n{1!r}"
+				message = template.format(type(ex).__name__, ex.args)
+				print message
 
 		if BTstate == 2:
 			if isDataIn == False:
-				print "Wait RX"
+#				print "Wait RX"
 				try:
 					dataIn = client_socket.recv(1024, 0x40)  # The function waits for characters !
 					isDataIn = True
@@ -237,7 +234,9 @@ while True:
 		if (BTstate == 0):
 			draw.text((x, top+8),  "Disconnected", font=font, fill=255)
 		elif (BTstate == 2):
-			draw.text((x, top+8),  "Connected", font=font, fill=255)
+			draw.text((x, top+8),  "Connected   ", font=font, fill=255)
+	        disp.image(image)
+        	disp.display()
 
 	# Bluetooth management
 	if (BTstate == 0):
@@ -252,7 +251,7 @@ while True:
 		if t1.is_alive() == False:
 			print "Start thread  waiting for connection"
 			t1.start()
-			BTstate = 1
+#		BTstate = 1
 
 #   if (BTstate == 1):
 #      print "."
@@ -266,6 +265,8 @@ while True:
         			lcd.message(dataIn)
 			elif LCDtype == 2:
 				draw.text((x, top+16),  dataIn, font=font, fill=255)
+			        disp.image(image)
+			        disp.display()
 			isDataIn = False
 
 		if LCDtype == 1:
