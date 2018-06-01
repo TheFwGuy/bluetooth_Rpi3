@@ -62,7 +62,6 @@ dataOut = "  "
 # Identify type display present
 #def idDisplay():
 
-
 # Bluetooth Thread
 def waitBTthread():
 	global BTstate
@@ -147,7 +146,6 @@ if LCDtype == 1:
 	lcd.create_char(5, [8, 12, 10, 9, 10, 12, 8, 0])
 	lcd.create_char(6, [2, 6, 10, 18, 10, 6, 2, 0])
 	lcd.create_char(7, [31, 17, 21, 21, 21, 21, 17, 31])
-
 	# Initialization
 
 	# Start set up LCD plat RED
@@ -169,7 +167,7 @@ elif LCDtype == 2:
 	width = disp.width
 	height = disp.height
 	image = Image.new('1', (width, height))
-
+	
 	# Draw some shapes.
 	# First define some constants to allow easy resizing of shapes.
 	padding = -2
@@ -182,6 +180,8 @@ elif LCDtype == 2:
 	font = ImageFont.load_default()
 	# Get drawing object to draw on image.
 	draw = ImageDraw.Draw(image)
+	draw.rectangle((0,0,width,height), outline=0, fill=0)
+
 	# Shell scripts for system monitoring from here : https://unix.stackexchange.com/questions/119126/command-to-display-memory-usage-disk-usage-and-cpu-load
 	cmd = "hostname -I | cut -d\' \' -f1"
 	IP = subprocess.check_output(cmd, shell = True )
@@ -231,12 +231,18 @@ while True:
 		else:
 			lcd.set_color(0.0, 0.0, 0.0)
 	elif LCDtype == 2:
+	        disp.clear()
+	        draw.rectangle((0,0,width,height), outline=0, fill=0)
+
+	        # Write two lines of text.
+        	draw.text((x, top),       "IP: " + str(IP),  font=font, fill=255)
+
 		if (BTstate == 0):
 			draw.text((x, top+8),  "Disconnected", font=font, fill=255)
+                elif (BTstate == 1):
+                        draw.text((x, top+8),  "Waiting connection", font=font, fill=255)
 		elif (BTstate == 2):
-			draw.text((x, top+8),  "Connected   ", font=font, fill=255)
-	        disp.image(image)
-        	disp.display()
+			draw.text((x, top+8),  "Connected", font=font, fill=255)
 
 	# Bluetooth management
 	if (BTstate == 0):
@@ -265,8 +271,6 @@ while True:
         			lcd.message(dataIn)
 			elif LCDtype == 2:
 				draw.text((x, top+16),  dataIn, font=font, fill=255)
-			        disp.image(image)
-			        disp.display()
 			isDataIn = False
 
 		if LCDtype == 1:
@@ -284,3 +288,7 @@ while True:
 					dataOut = "Up\n"
 					isDataOut = True
 
+	# At the end of the loop force show display image for LCD type 2
+	if LCDtype == 2:
+		disp.image(image)
+		disp.display()
