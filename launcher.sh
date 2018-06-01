@@ -5,5 +5,5 @@ echo " $HOSTNAME : `hostname -I`"
 
 cd /
 cd /home/pi/bluetooth_Rpi3
-#sudo ./BLTest.py
+sudo ./BLTest.py
 cd /
