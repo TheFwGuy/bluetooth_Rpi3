@@ -46,16 +46,17 @@ buttons = ( (LCD.SELECT, 'Select', (1,1,1)),
             (LCD.RIGHT,  'Right' , (1,0,1)) )
 
 # State machine for Bluetooth
-# 0 -> Initialization program - init BT 
+# 0 -> Initialization program - init BT
 # 1 -> waiting for connection
 # 2 -> connected
+# 3 -> requested SHUTDOWN from app
 BTstate = 0
 
 # Data TX/RX related variables
-isDataIn = False
+isDataIn  = False
 isDataOut = False
-dataIn = "  "
-dataOut = "  "
+dataIn    = "  "
+dataOut   = "  "
 
 # Define functions
 
@@ -99,7 +100,19 @@ def waitBTthread():
 #				print "Wait RX"
 				try:
 					dataIn = client_socket.recv(1024, 0x40)  # The function waits for characters !
-					isDataIn = True
+
+					print "Received: %s" % dataIn
+ 
+					if (dataIn == 'q\n'):		# Disconnect request from app !!!
+						client_socket.close()
+						server_socket.close()
+						BTstate = 0
+					elif (dataIn == "SH\n"):        # SHUTDOWN request from app !!!
+						client_socket.close()
+						server_socket.close()
+						BTstate = 3
+					else:
+						isDataIn = True
 				except Exception as ex:
 					template = "2) An exception of type {0} occurred. Arguments:\n{1!r}"
 					message = template.format(type(ex).__name__, ex.args)
@@ -117,21 +130,20 @@ def waitBTthread():
 					else:
 						print message
 
-			else:
-				print "Received: %s" % dataIn
-         
-				if (dataIn == 'q\n'):
-					client_socket.close()
-					server_socket.close()
-					BTstate = 0
-					isDataIn = False
-
 			if isDataOut:
 				print "Thread - attempt to send out data"
 				client_socket.send(dataOut)
 				isDataOut = False
-
 # ----- end thread ---------
+
+
+# Shutdown thread !
+# The thread shutdown the Raspberry - waiting a couple of seconds
+def remoteShutdownThread():
+        print "Shutdown thread started"
+        time.sleep(2)
+        os.system("sudo poweroff")
+# ------ end thread ---------
 
 
 if LCDtype == 1:
@@ -166,48 +178,40 @@ elif LCDtype == 2:
 	# Make sure to create image with mode '1' for 1-bit color.
 	width = disp.width
 	height = disp.height
-	image = Image.new('1', (width, height))
-	
-	# Draw some shapes.
-	# First define some constants to allow easy resizing of shapes.
-	padding = -2
-	top = padding
-	bottom = height-padding
-	# Move left to right keeping track of the current x position for drawing shapes.
 	x = 0
+        padding = -2
+        top = padding
+        bottom = height-padding
+
+	image = Image.new('1', (width, height))
 
 	# Load default font.
 	font = ImageFont.load_default()
 	# Get drawing object to draw on image.
 	draw = ImageDraw.Draw(image)
-	draw.rectangle((0,0,width,height), outline=0, fill=0)
 
 	# Shell scripts for system monitoring from here : https://unix.stackexchange.com/questions/119126/command-to-display-memory-usage-disk-usage-and-cpu-load
 	cmd = "hostname -I | cut -d\' \' -f1"
 	IP = subprocess.check_output(cmd, shell = True )
-	
-	# Write two lines of text.
-	draw.text((x, top),       "IP: " + str(IP),  font=font, fill=255)
-#	draw.text((x, top+8),     str(CPU), font=font, fill=255)
-#	draw.text((x, top+16),    str(MemUsage),  font=font, fill=255)
-#	draw.text((x, top+25),    str(Disk),  font=font, fill=255)
 
-	# Display image.
+	draw.rectangle((0,0,width,height), outline=0, fill=0)
+	draw.text((x, top),       "IP: " + str(IP),  font=font, fill=255)
+
 	disp.image(image)
 	disp.display()
-
-
-# Monitor push buttons
-# The main loop of the program check if the Select button is pressed.
-# If is pressed, the shutdown is issued
 
 isDataIn = False
 isDataOut = False
 
-t1 = threading.Thread(target= waitBTthread, args=())
+#t1 = threading.Thread(target= waitBTthread, args=())
+#t2 = threading.Thread(target= remoteShutdownThread, args=())
 
 while True:
 	if LCDtype == 1:
+		# Monitor push buttons
+		# The main loop of the program check if the Select button is pressed.
+		# If select is pressed, the shutdown is issued
+
 		# Check if Select is pressed
 		if lcd.is_pressed(LCD.SELECT):
 			# Button is pressed, change the message and backlight.
@@ -218,34 +222,35 @@ while True:
 			os.system("sudo poweroff")
 
 		# Color display management
-		if (BTstate == 0):
+		if BTstate == 0:
 			lcd.set_color(1.0, 0.0, 0.0)
 			lcd.clear()
 			#lcd.message('Disconnected\nBluetooth')
 			lcd.message('IP WLAN:\n')
 			lcd.message(commands.getoutput('hostname -I'))
-		elif (BTstate == 1):
+		elif BTstate == 1:
 			lcd.set_color(0.0, 1.0, 0.0)
-		elif (BTstate == 2):
+		elif BTstate == 2:
 			lcd.set_color(0.0, 0.0, 1.0)
 		else:
 			lcd.set_color(0.0, 0.0, 0.0)
 	elif LCDtype == 2:
-	        disp.clear()
 	        draw.rectangle((0,0,width,height), outline=0, fill=0)
 
 	        # Write two lines of text.
         	draw.text((x, top),       "IP: " + str(IP),  font=font, fill=255)
 
-		if (BTstate == 0):
+		if BTstate == 0:
 			draw.text((x, top+8),  "Disconnected", font=font, fill=255)
-                elif (BTstate == 1):
+                elif BTstate == 1:
                         draw.text((x, top+8),  "Waiting connection", font=font, fill=255)
-		elif (BTstate == 2):
+		elif BTstate == 2:
 			draw.text((x, top+8),  "Connected", font=font, fill=255)
+		elif BTstate == 3:
+			draw.text((x, top+8),  "SHUTDOWN !", font=font, fill=255)
 
 	# Bluetooth management
-	if (BTstate == 0):
+	if BTstate == 0:
 		# Set up Bluettoth
 		# Restart Bluetooth and set for slave
 		os.popen('sudo hciconfig hci0 reset')
@@ -257,12 +262,9 @@ while True:
 		if t1.is_alive() == False:
 			print "Start thread  waiting for connection"
 			t1.start()
-#		BTstate = 1
+			time.sleep(.2)
 
-#   if (BTstate == 1):
-#      print "."
-
-	if (BTstate == 2):
+	if BTstate == 2:
 		# Check if received data
 		if isDataIn:
 			print "Main : %s" % dataIn
@@ -287,6 +289,13 @@ while True:
 					print "Up button pressed - send message"
 					dataOut = "Up\n"
 					isDataOut = True
+
+	if BTstate == 3:		# Shutdown requested from APP !!!!
+		t2 = threading.Thread(target= remoteShutdownThread, args=())
+		if t2.is_alive() == False:
+			print "Start thread for shutdown"
+			t2.start()
+			time.sleep(.2)
 
 	# At the end of the loop force show display image for LCD type 2
 	if LCDtype == 2:
