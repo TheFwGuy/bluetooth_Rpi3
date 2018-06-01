@@ -73,6 +73,7 @@ def waitBTthread():
 	global dataOut
 
 	while True:
+		time.sleep(.5)          # Give some time to the main loop
 		if BTstate == 0:
 			# Init connection
 			server_socket=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
@@ -98,9 +99,8 @@ def waitBTthread():
 			print message
 
 		if BTstate == 2:
-			time.sleep(.5)		# Give some time to the main loop
 			if isDataIn == False:
-#            print "Wait RX"
+				print "Wait RX"
 				try:
 					dataIn = client_socket.recv(1024, 0x40)  # The function waits for characters !
 					isDataIn = True
@@ -233,6 +233,11 @@ while True:
 			lcd.set_color(0.0, 0.0, 1.0)
 		else:
 			lcd.set_color(0.0, 0.0, 0.0)
+	elif LCDtype == 2:
+		if (BTstate == 0):
+			draw.text((x, top+8),  "Disconnected", font=font, fill=255)
+		elif (BTstate == 2):
+			draw.text((x, top+8),  "Connected", font=font, fill=255)
 
 	# Bluetooth management
 	if (BTstate == 0):
@@ -259,6 +264,8 @@ while True:
 			if LCDtype == 1:
 				lcd.clear()
         			lcd.message(dataIn)
+			elif LCDtype == 2:
+				draw.text((x, top+16),  dataIn, font=font, fill=255)
 			isDataIn = False
 
 		if LCDtype == 1:
