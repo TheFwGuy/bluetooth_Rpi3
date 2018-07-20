@@ -101,7 +101,7 @@ def waitBTthread():
 				try:
 					dataIn = client_socket.recv(1024, 0x40)  # The function waits for characters !
 
-					print "Received: %s" % dataIn
+					print "Received %s " % dataIn
  
 					if (dataIn == 'q\n'):		# Disconnect request from app !!!
 						client_socket.close()
